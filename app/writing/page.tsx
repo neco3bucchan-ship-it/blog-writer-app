@@ -1,228 +1,331 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { ArrowLeft, ChevronLeft, ChevronRight, Save, Sparkles } from "lucide-react"
+import { ArrowLeft, ChevronLeft, ChevronRight, Save, Sparkles, Loader2, AlertCircle } from "lucide-react"
 import Link from "next/link"
+import { useSearchParams } from "next/navigation"
 
-// Dummy outline data
-const outline = [
-  {
-    id: "1",
-    section: 1,
-    title: "React.jsとは何か？",
-    description: "基本的な概念と特徴を解説",
-    content: "",
-  },
-  {
-    id: "2",
-    section: 2,
-    title: "環境構築の手順",
-    description: "開発環境の準備から始めよう",
-    content: "",
-  },
-  {
-    id: "3",
-    section: 3,
-    title: "初めてのコンポーネント",
-    description: "実際にコードを書いてみよう",
-    content: "",
-  },
-  {
-    id: "4",
-    section: 4,
-    title: "Hooksの基礎",
-    description: "useStateとuseEffectを使った状態管理",
-    content: "",
-  },
-  {
-    id: "5",
-    section: 5,
-    title: "実践的なアプリケーション",
-    description: "実際のプロジェクトで学ぶ",
-    content: "",
-  },
-]
+interface OutlineSection {
+  id: string;
+  section: number;
+  title: string;
+  description: string;
+}
 
-const dummyGeneratedContent: Record<string, string> = {
-  "1": `React.jsは、Facebookが開発したJavaScriptライブラリで、ユーザーインターフェースを構築するために使用されます。コンポーネントベースのアーキテクチャを採用しており、再利用可能なUIパーツを作成できることが大きな特徴です。
-
-仮想DOM（Virtual DOM）という技術を使用することで、効率的な画面更新を実現しています。実際のDOMを直接操作するのではなく、メモリ上に仮想的なDOMツリーを保持し、変更があった部分だけを効率的に更新します。
-
-また、宣言的なプログラミングスタイルを採用しているため、UIの状態管理が直感的で分かりやすくなっています。これにより、複雑なアプリケーションでも保守性の高いコードを書くことができます。`,
-
-  "2": `React.jsの開発環境を構築するには、まずNode.jsとnpmをインストールする必要があります。Node.jsの公式サイトから最新のLTS版をダウンロードし、インストールしましょう。
-
-次に、Create React Appというツールを使用して、新しいReactプロジェクトを作成します。ターミナルで「npx create-react-app my-app」というコマンドを実行すると、必要なファイルやディレクトリが自動的に生成されます。
-
-プロジェクトが作成されたら、「cd my-app」でディレクトリに移動し、「npm start」コマンドで開発サーバーを起動します。ブラウザで「http://localhost:3000」にアクセスすると、Reactアプリケーションが表示されます。`,
-
-  "3": `Reactのコンポーネントは、関数コンポーネントとクラスコンポーネントの2種類がありますが、現在は関数コンポーネントが主流です。最初のコンポーネントとして、シンプルな挨拶メッセージを表示するコンポーネントを作成してみましょう。
-
-「src」フォルダ内に「Greeting.jsx」というファイルを作成し、関数コンポーネントを定義します。JSXという構文を使用して、HTMLのような記述でUIを表現できます。
-
-作成したコンポーネントは、App.jsでインポートして使用します。コンポーネントの再利用性を活かして、同じコンポーネントを複数回使用したり、propsを使って異なるデータを渡したりすることができます。`,
-
-  "4": `Hooksは、React 16.8で導入された機能で、関数コンポーネントで状態管理や副作用を扱えるようにします。最も基本的なHookであるuseStateを使用すると、コンポーネント内で状態を保持できます。
-
-useStateは、現在の状態値と、その状態を更新する関数のペアを返します。例えば、カウンターアプリを作る場合、「const [count, setCount] = useState(0)」のように記述します。
-
-useEffectは、コンポーネントのレンダリング後に実行される副作用を定義するためのHookです。データの取得、購読の設定、DOMの手動変更など、様々な用途に使用できます。依存配列を適切に設定することで、効率的な処理を実現できます。`,
-
-  "5": `実践的なアプリケーションとして、ToDoリストアプリを作成してみましょう。このアプリでは、これまで学んだコンポーネント、useState、useEffectなどの知識を総合的に活用します。
-
-まず、タスクの追加、削除、完了状態の切り替えといった基本機能を実装します。状態管理にはuseStateを使用し、タスクのリストを配列として保持します。
-
-さらに、localStorageを使用してタスクを永続化したり、フィルタリング機能を追加したりすることで、より実用的なアプリケーションに仕上げることができます。このような実践を通じて、Reactの理解を深めていきましょう。`,
+interface ContentSection {
+  id: string;
+  section: number;
+  title: string;
+  content: string;
 }
 
 export default function WritingPage() {
+  const searchParams = useSearchParams()
   const [currentSection, setCurrentSection] = useState(0)
-  const [content, setContent] = useState("")
-  const [lastSaved, setLastSaved] = useState<Date | null>(null)
+  const [content, setContent] = useState<Record<string, string>>({})
   const [isGenerating, setIsGenerating] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+  const [outline, setOutline] = useState<OutlineSection[]>([])
+  const [generatedContent, setGeneratedContent] = useState<ContentSection[]>([])
+  const [lastSaved, setLastSaved] = useState<Date | null>(null)
+
+  // URLパラメータから情報を取得
+  const heading = searchParams.get('heading') || ''
+  const theme = searchParams.get('theme') || ''
+  const targetAudience = searchParams.get('targetAudience') || ''
+  const outlineParam = searchParams.get('outline') || ''
+
+  // ハイドレーション問題を防ぐため、クライアントサイドでのみ実行
+  const [isClient, setIsClient] = useState(false)
+  
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
+
+  // コンポーネントマウント時に本文を生成
+  useEffect(() => {
+    if (!isClient) return // クライアントサイドでのみ実行
+    
+    const generateContent = async () => {
+      if (!heading || !targetAudience || !outlineParam) {
+        setError('見出し、ターゲット読者、または目次の情報が不足しています')
+        setIsLoading(false)
+        return
+      }
+
+      try {
+        setIsLoading(true)
+        setError(null)
+        
+        // 目次データをパース
+        const parsedOutline = JSON.parse(decodeURIComponent(outlineParam))
+        setOutline(parsedOutline)
+        
+        const response = await fetch('/api/ai/generate-content', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            heading,
+            targetAudience,
+            outline: parsedOutline,
+          }),
+        })
+
+        if (!response.ok) {
+          throw new Error('本文の生成に失敗しました')
+        }
+
+        const data = await response.json()
+        setGeneratedContent(data.content || [])
+        
+        // 生成されたコンテンツを初期状態として設定
+        const initialContent: Record<string, string> = {}
+        data.content.forEach((section: ContentSection) => {
+          initialContent[section.id] = section.content
+        })
+        setContent(initialContent)
+      } catch (err) {
+        console.error('Error generating content:', err)
+        setError(err instanceof Error ? err.message : '本文の生成に失敗しました')
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    generateContent()
+  }, [isClient, heading, targetAudience, outlineParam])
 
   const handlePrevious = () => {
     if (currentSection > 0) {
       setCurrentSection(currentSection - 1)
-      setContent("")
     }
   }
 
   const handleNext = () => {
     if (currentSection < outline.length - 1) {
       setCurrentSection(currentSection + 1)
-      setContent("")
     }
   }
 
   const handleSave = () => {
-    setLastSaved(new Date())
+    setIsSaving(true)
+    // 実際の保存処理をここに実装
+    setTimeout(() => {
+      setLastSaved(new Date())
+      setIsSaving(false)
+    }, 1000)
   }
 
-  const handleGenerateContent = async () => {
-    setIsGenerating(true)
-    // Simulate AI generation delay
-    await new Promise((resolve) => setTimeout(resolve, 2000))
-    const generatedContent = dummyGeneratedContent[currentItem.id] || "生成されたコンテンツがここに表示されます。"
-    setContent(generatedContent)
-    setIsGenerating(false)
-    setLastSaved(new Date())
+  const handleGenerate = async () => {
+    if (!heading || !targetAudience || outline.length === 0) {
+      setError('再生成に必要な情報が不足しています')
+      return
+    }
+
+    try {
+      setIsGenerating(true)
+      setError(null)
+      
+      const response = await fetch('/api/ai/generate-content', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          heading,
+          targetAudience,
+          outline,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('本文の再生成に失敗しました')
+      }
+
+      const data = await response.json()
+      setGeneratedContent(data.content || [])
+      
+      // 生成されたコンテンツを更新
+      const updatedContent: Record<string, string> = {}
+      data.content.forEach((section: ContentSection) => {
+        updatedContent[section.id] = section.content
+      })
+      setContent(updatedContent)
+      setSuccess('本文が正常に再生成されました')
+      
+      // 成功メッセージを3秒後に消去
+      setTimeout(() => {
+        setSuccess(null)
+      }, 3000)
+    } catch (err) {
+      console.error('Error regenerating content:', err)
+      setError(err instanceof Error ? err.message : '本文の再生成に失敗しました')
+    } finally {
+      setIsGenerating(false)
+    }
   }
 
-  const currentItem = outline[currentSection]
-  const progress = ((currentSection + 1) / outline.length) * 100
+  const currentOutline = outline[currentSection]
+  const currentContent = content[currentOutline?.id] || ''
 
   return (
-    <div className="flex min-h-screen bg-background">
-      {/* Sidebar - Outline */}
-      <aside className="hidden w-64 border-r border-border bg-muted/30 lg:block">
-        <div className="sticky top-0 p-6">
-          <div className="mb-6">
-            <Link href="/outline-editing">
-              <Button variant="ghost" size="sm" className="mb-4">
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                戻る
-              </Button>
-            </Link>
-            <h2 className="text-lg font-semibold">目次</h2>
-            <div className="mt-2 text-sm text-muted-foreground">進捗: {Math.round(progress)}%</div>
+    <div className="min-h-screen bg-background">
+      <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
+        {/* Header */}
+        <div className="mb-8 flex items-center justify-between">
+          <Link href="/outline-editing">
+            <Button variant="ghost" size="sm">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              戻る
+            </Button>
+          </Link>
+          <span className="text-sm text-muted-foreground">5/5 執筆</span>
+        </div>
+
+        {/* Main Content */}
+        <div className="space-y-8">
+          <div>
+            <h1 className="mb-2 text-balance text-3xl font-bold">記事を執筆してください</h1>
+            <p className="text-muted-foreground">
+              AIが生成した内容を参考に、各セクションの内容を編集・執筆してください
+            </p>
           </div>
-          <nav className="space-y-2">
-            {outline.map((item, index) => (
-              <button
-                key={item.id}
-                onClick={() => setCurrentSection(index)}
-                className={`w-full rounded-md px-3 py-2 text-left text-sm transition-colors ${
-                  currentSection === index ? "bg-primary text-primary-foreground" : "hover:bg-accent"
-                }`}
-              >
-                <div className="font-medium">
-                  {item.section}. {item.title}
+
+          {/* Loading State */}
+          {isLoading && (
+            <div className="flex flex-col items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
+              <p className="text-muted-foreground">AIが本文を生成中...</p>
+            </div>
+          )}
+
+          {/* Error State */}
+          {error && (
+            <div className="flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/10 p-4">
+              <AlertCircle className="h-5 w-5 text-destructive" />
+              <p className="text-destructive">{error}</p>
+            </div>
+          )}
+
+          {/* Success State */}
+          {success && (
+            <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 p-4">
+              <div className="h-5 w-5 rounded-full bg-green-500 flex items-center justify-center">
+                <span className="text-white text-xs">✓</span>
+              </div>
+              <p className="text-green-700">{success}</p>
+            </div>
+          )}
+
+          {/* Writing Interface */}
+          {!isLoading && !error && (
+            <>
+              {/* Section Navigation */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handlePrevious}
+                    disabled={currentSection === 0}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    前のセクション
+                  </Button>
+                  <span className="text-sm text-muted-foreground">
+                    {currentSection + 1} / {outline.length}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleNext}
+                    disabled={currentSection === outline.length - 1}
+                  >
+                    次のセクション
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
                 </div>
-              </button>
-            ))}
-          </nav>
-        </div>
-      </aside>
+                <div className="flex items-center gap-2">
+                  {lastSaved && (
+                    <span className="text-sm text-muted-foreground">
+                      最終保存: {lastSaved.toLocaleTimeString()}
+                    </span>
+                  )}
+                </div>
+              </div>
 
-      {/* Main Content - Writing Area */}
-      <main className="flex-1">
-        <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
-          {/* Mobile Header */}
-          <div className="mb-6 lg:hidden">
-            <Link href="/outline-editing">
-              <Button variant="ghost" size="sm">
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                戻る
-              </Button>
-            </Link>
-          </div>
+              {/* Current Section */}
+              {currentOutline && (
+                <div className="space-y-4">
+                  <div>
+                    <h2 className="text-xl font-semibold">
+                      {currentOutline.section}. {currentOutline.title}
+                    </h2>
+                    <p className="text-muted-foreground">{currentOutline.description}</p>
+                  </div>
 
-          {/* Section Info */}
-          <div className="mb-8">
-            <div className="mb-2 flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">
-                4/5 記事執筆 • セクション {currentSection + 1}/{outline.length}
-              </span>
-              {lastSaved && (
-                <span className="text-sm text-muted-foreground">保存済み: {lastSaved.toLocaleTimeString("ja-JP")}</span>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">内容</label>
+                    <Textarea
+                      value={currentContent}
+                      onChange={(e) => {
+                        setContent(prev => ({
+                          ...prev,
+                          [currentOutline.id]: e.target.value
+                        }))
+                      }}
+                      className="min-h-[400px] resize-none"
+                      placeholder="ここに内容を入力してください..."
+                    />
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">
+                        {currentContent.length}文字
+                      </span>
+                    </div>
+                  </div>
+                </div>
               )}
-            </div>
-            <h1 className="mb-2 text-balance text-3xl font-bold">{currentItem.title}</h1>
-            <p className="text-muted-foreground">{currentItem.description}</p>
-          </div>
 
-          <div className="mb-4">
-            <Button
-              onClick={handleGenerateContent}
-              disabled={isGenerating}
-              className="w-full sm:w-auto"
-              variant="default"
-            >
-              <Sparkles className="mr-2 h-4 w-4" />
-              {isGenerating ? "生成中..." : "AIで本文を自動生成"}
-            </Button>
-          </div>
-
-          {/* Writing Area */}
-          <div className="mb-6 space-y-4">
-            <Textarea
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              placeholder="「AIで本文を自動生成」ボタンをクリックするか、ここに直接記事を書いてください..."
-              className="min-h-[400px] resize-none text-base leading-relaxed"
-              disabled={isGenerating}
-            />
-            <div className="flex items-center justify-between text-sm text-muted-foreground">
-              <span>{content.length}文字</span>
-              <Button variant="outline" size="sm" onClick={handleSave} disabled={isGenerating}>
-                <Save className="mr-2 h-4 w-4" />
-                保存
-              </Button>
-            </div>
-          </div>
-
-          {/* Navigation */}
-          <div className="flex items-center justify-between border-t border-border pt-6">
-            <Button variant="outline" onClick={handlePrevious} disabled={currentSection === 0}>
-              <ChevronLeft className="mr-2 h-4 w-4" />
-              前のセクション
-            </Button>
-            {currentSection === outline.length - 1 ? (
-              <Link href="/articles">
-                <Button>完了</Button>
-              </Link>
-            ) : (
-              <Button onClick={handleNext}>
-                次のセクション
-                <ChevronRight className="ml-2 h-4 w-4" />
-              </Button>
-            )}
-          </div>
+              {/* Action Buttons */}
+              <div className="flex flex-wrap gap-3 pt-4">
+                <Button variant="outline" onClick={handleGenerate} disabled={isGenerating}>
+                  {isGenerating ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      再生成中...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="mr-2 h-4 w-4" />
+                      全体を再生成
+                    </>
+                  )}
+                </Button>
+                <Button onClick={handleSave} disabled={isSaving}>
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      保存中...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="mr-2 h-4 w-4" />
+                      保存
+                    </>
+                  )}
+                </Button>
+              </div>
+            </>
+          )}
         </div>
-      </main>
+      </div>
     </div>
   )
 }

@@ -17,6 +17,8 @@ export default function ThemeInputPage() {
   const [errors, setErrors] = useState<{ theme?: string; audience?: string }>({})
 
   const handleGenerate = () => {
+    console.log('handleGenerate called with:', { theme, targetAudience })
+    
     const newErrors: { theme?: string; audience?: string } = {}
 
     if (!theme) {
@@ -32,14 +34,18 @@ export default function ThemeInputPage() {
     }
 
     if (Object.keys(newErrors).length > 0) {
+      console.log('Validation errors:', newErrors)
       setErrors(newErrors)
       return
     }
 
+    console.log('Validation passed, navigating to heading-selection')
     setIsGenerating(true)
     // テーマとターゲット読者をURLパラメータとして渡す
     setTimeout(() => {
-      router.push(`/heading-selection?theme=${encodeURIComponent(theme)}&targetAudience=${encodeURIComponent(targetAudience)}`)
+      const url = `/heading-selection?theme=${encodeURIComponent(theme)}&targetAudience=${encodeURIComponent(targetAudience)}`
+      console.log('Navigating to:', url)
+      router.push(url)
     }, 1500)
   }
 
@@ -88,7 +94,7 @@ export default function ThemeInputPage() {
 
           {/* Target Audience */}
           <div className="space-y-3">
-            <Label>ターゲット読者</Label>
+            <Label htmlFor="target-audience">ターゲット読者</Label>
             <RadioGroup
               value={targetAudience}
               onValueChange={(value) => {

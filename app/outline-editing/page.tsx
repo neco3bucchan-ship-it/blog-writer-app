@@ -1,52 +1,83 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { ArrowLeft, Pencil, Trash2, Loader2 } from "lucide-react"
+import { ArrowLeft, Pencil, Trash2, Loader2, AlertCircle } from "lucide-react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 
-// Dummy outline data
-const initialOutline = [
-  {
-    id: "1",
-    section: 1,
-    title: "React.jsとは何か？",
-    description: "基本的な概念と特徴を解説し、なぜReact.jsが人気なのかを説明します",
-  },
-  {
-    id: "2",
-    section: 2,
-    title: "環境構築の手順",
-    description: "開発環境の準備から始めよう。Node.jsのインストールから始めます",
-  },
-  {
-    id: "3",
-    section: 3,
-    title: "初めてのコンポーネント",
-    description: "実際にコードを書いてみよう。シンプルなコンポーネントを作成します",
-  },
-  {
-    id: "4",
-    section: 4,
-    title: "Hooksの基礎",
-    description: "useStateとuseEffectを使った状態管理を学びます",
-  },
-  {
-    id: "5",
-    section: 5,
-    title: "実践的なアプリケーション",
-    description: "実際のプロジェクトで学ぶ。Todoアプリを作成してみましょう",
-  },
-]
+interface OutlineSection {
+  id: string;
+  section: number;
+  title: string;
+  description: string;
+}
 
 export default function OutlineEditingPage() {
   const router = useRouter()
-  const [outline, setOutline] = useState(initialOutline)
+  const searchParams = useSearchParams()
+  const [outline, setOutline] = useState<OutlineSection[]>([])
   const [editingId, setEditingId] = useState<string | null>(null)
   const [isStarting, setIsStarting] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  // URLパラメータから見出し、テーマ、ターゲット読者を取得
+  const heading = searchParams.get('heading') || ''
+  const theme = searchParams.get('theme') || ''
+  const targetAudience = searchParams.get('targetAudience') || ''
+
+  // ハイドレーション問題を防ぐため、クライアントサイドでのみ実行
+  const [isClient, setIsClient] = useState(false)
+  
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
+
+  // コンポーネントマウント時にアウトラインを生成
+  useEffect(() => {
+    if (!isClient) return // クライアントサイドでのみ実行
+    
+    const generateOutline = async () => {
+      if (!heading || !targetAudience) {
+        setError('見出しまたはターゲット読者の情報が不足しています')
+        setIsLoading(false)
+        return
+      }
+
+      try {
+        setIsLoading(true)
+        setError(null)
+        
+        const response = await fetch('/api/ai/generate-outline', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            heading,
+            targetAudience,
+          }),
+        })
+
+        if (!response.ok) {
+          throw new Error('アウトラインの生成に失敗しました')
+        }
+
+        const data = await response.json()
+        setOutline(data.outline || [])
+      } catch (err) {
+        console.error('Error generating outline:', err)
+        setError(err instanceof Error ? err.message : 'アウトラインの生成に失敗しました')
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    generateOutline()
+  }, [isClient, heading, targetAudience])
 
   const handleEdit = (id: string) => {
     setEditingId(id)
@@ -66,9 +97,10 @@ export default function OutlineEditingPage() {
 
   const handleStart = () => {
     setIsStarting(true)
-    // Simulate navigation
+    // アウトライン情報をURLパラメータとして渡す
     setTimeout(() => {
-      router.push("/writing")
+      const outlineData = encodeURIComponent(JSON.stringify(outline))
+      router.push(`/writing?heading=${encodeURIComponent(heading)}&theme=${encodeURIComponent(theme)}&targetAudience=${encodeURIComponent(targetAudience)}&outline=${outlineData}`)
     }, 1000)
   }
 
@@ -93,9 +125,26 @@ export default function OutlineEditingPage() {
             <p className="text-muted-foreground">各セクションの内容を確認し、必要に応じて編集や削除ができます</p>
           </div>
 
+          {/* Loading State */}
+          {isLoading && (
+            <div className="flex flex-col items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
+              <p className="text-muted-foreground">AIがアウトラインを生成中...</p>
+            </div>
+          )}
+
+          {/* Error State */}
+          {error && (
+            <div className="flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/10 p-4">
+              <AlertCircle className="h-5 w-5 text-destructive" />
+              <p className="text-destructive">{error}</p>
+            </div>
+          )}
+
           {/* Outline Items */}
-          <div className="space-y-4">
-            {outline.map((item) => (
+          {!isLoading && !error && (
+            <div className="space-y-4">
+              {outline.map((item) => (
               <div key={item.id} className="rounded-lg border border-border p-4">
                 {editingId === item.id ? (
                   <div className="space-y-3">
@@ -138,7 +187,8 @@ export default function OutlineEditingPage() {
                 )}
               </div>
             ))}
-          </div>
+            </div>
+          )}
 
           {/* Action Buttons */}
           <div className="flex flex-wrap gap-3 pt-4">
