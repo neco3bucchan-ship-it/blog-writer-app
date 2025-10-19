@@ -66,22 +66,22 @@ export async function generateHeadings(request: GenerateHeadingsRequest): Promis
           {
             id: "1",
             title: `${request.theme}の基礎を学ぶ完全ガイド`,
-            description: "初心者向けの基礎知識から実践まで"
+            description: `${request.theme}の基本概念から実践まで、${request.targetAudience}向けに分かりやすく解説`
           },
           {
             id: "2", 
             title: `ゼロから始める${request.theme}入門`,
-            description: "環境構築から実際の開発まで"
+            description: `${request.theme}の環境構築から実際の開発まで、ステップバイステップで学習`
           },
           {
             id: "3",
             title: `${request.theme}で作る実践的なアプリケーション`,
-            description: "実際のプロジェクトで学ぶ"
+            description: `${request.theme}を使った実際のプロジェクトで実践的なスキルを身につける`
           },
           {
             id: "4",
             title: `${request.theme}の応用テクニック`,
-            description: "中級者向けの高度な技術"
+            description: `${request.theme}の高度な機能やテクニックを${request.targetAudience}向けに解説`
           }
         ]
       };
@@ -91,8 +91,14 @@ export async function generateHeadings(request: GenerateHeadingsRequest): Promis
 テーマ: ${request.theme}
 ターゲット読者: ${request.targetAudience}
 
-このテーマに基づいて、3-5個の魅力的な見出しを生成してください。
-各見出しは30文字以内で、読者の興味を引くものにしてください。
+このテーマ「${request.theme}」に特化した、魅力的で具体的な見出しを3-5個生成してください。
+
+要件：
+- テーマ「${request.theme}」に直接関連した内容であること
+- ターゲット読者「${request.targetAudience}」に適した難易度と内容
+- 各見出しは30文字以内で、読者の興味を引くもの
+- 実用的で具体的な内容を含むこと
+- 学習段階に応じた構成（基礎→応用→実践など）
 
 以下のJSON形式で返してください：
 {
@@ -100,7 +106,7 @@ export async function generateHeadings(request: GenerateHeadingsRequest): Promis
     {
       "id": "1",
       "title": "見出しタイトル",
-      "description": "見出しの簡潔な説明"
+      "description": "見出しの簡潔な説明（50文字以内）"
     }
   ]
 }
@@ -123,18 +129,18 @@ export async function generateHeadings(request: GenerateHeadingsRequest): Promis
         headings: [
           {
             id: "1",
-            title: "生成された見出し1",
-            description: "AIが生成した見出しです"
+            title: `${request.theme}の基礎を学ぶ完全ガイド`,
+            description: `${request.theme}の基本概念から実践まで、${request.targetAudience}向けに分かりやすく解説`
           },
           {
             id: "2", 
-            title: "生成された見出し2",
-            description: "AIが生成した見出しです"
+            title: `ゼロから始める${request.theme}入門`,
+            description: `${request.theme}の環境構築から実際の開発まで、ステップバイステップで学習`
           },
           {
             id: "3",
-            title: "生成された見出し3", 
-            description: "AIが生成した見出しです"
+            title: `${request.theme}で作る実践的なアプリケーション`,
+            description: `${request.theme}を使った実際のプロジェクトで実践的なスキルを身につける`
           }
         ]
       };
@@ -147,17 +153,17 @@ export async function generateHeadings(request: GenerateHeadingsRequest): Promis
         {
           id: "1",
           title: `${request.theme}の基礎を学ぶ完全ガイド`,
-          description: "初心者向けの基礎知識から実践まで"
+          description: `${request.theme}の基本概念から実践まで、${request.targetAudience}向けに分かりやすく解説`
         },
         {
           id: "2", 
           title: `ゼロから始める${request.theme}入門`,
-          description: "環境構築から実際の開発まで"
+          description: `${request.theme}の環境構築から実際の開発まで、ステップバイステップで学習`
         },
         {
           id: "3",
           title: `${request.theme}で作る実践的なアプリケーション`,
-          description: "実際のプロジェクトで学ぶ"
+          description: `${request.theme}を使った実際のプロジェクトで実践的なスキルを身につける`
         }
       ]
     };
