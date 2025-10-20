@@ -2,6 +2,8 @@ import type React from "react"
 import type { Metadata } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
+import { AuthProvider } from "@/contexts/AuthContext"
+import { Footer } from "@/components/Footer"
 import "./globals.css"
 
 const _geist = Geist({ subsets: ["latin"] })
@@ -21,7 +23,14 @@ export default function RootLayout({
   return (
     <html lang="ja">
       <body className={`font-sans antialiased`} suppressHydrationWarning={true}>
-        {children}
+        <AuthProvider>
+          <div className="flex min-h-screen flex-col">
+            <main className="flex-1">
+              {children}
+            </main>
+            <Footer />
+          </div>
+        </AuthProvider>
         <Analytics />
       </body>
     </html>

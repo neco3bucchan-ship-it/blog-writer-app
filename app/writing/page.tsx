@@ -1,11 +1,16 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { ArrowLeft, ChevronLeft, ChevronRight, Save, Sparkles, Loader2, AlertCircle } from "lucide-react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
+import { AuthGuard } from "@/components/AuthGuard"
+import { Header } from "@/components/Header"
+import { useAutoSave } from "@/hooks/useAutoSave"
+import { AutoSaveIndicator } from "@/components/AutoSaveIndicator"
+import { createArticle, updateArticle, getArticle } from "@/lib/article-service"
 
 interface OutlineSection {
   id: string;
@@ -19,9 +24,10 @@ interface ContentSection {
   section: number;
   title: string;
   content: string;
+  isCompleted?: boolean;
 }
 
-export default function WritingPage() {
+function WritingContent() {
   const searchParams = useSearchParams()
   const [currentSection, setCurrentSection] = useState(0)
   const [content, setContent] = useState<Record<string, string>>({})
@@ -33,6 +39,8 @@ export default function WritingPage() {
   const [outline, setOutline] = useState<OutlineSection[]>([])
   const [generatedContent, setGeneratedContent] = useState<ContentSection[]>([])
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
+  const [articleId, setArticleId] = useState<string | null>(null)
+  const [isCompleted, setIsCompleted] = useState<Record<string, boolean>>({})
 
   // URLパラメータから情報を取得
   const heading = searchParams.get('heading') || ''
@@ -47,60 +55,144 @@ export default function WritingPage() {
     setIsClient(true)
   }, [])
 
-  // コンポーネントマウント時に本文を生成
+  // 記事の初期化または復元
   useEffect(() => {
-    if (!isClient) return // クライアントサイドでのみ実行
-    
-    const generateContent = async () => {
-      if (!heading || !targetAudience || !outlineParam) {
-        setError('見出し、ターゲット読者、または目次の情報が不足しています')
-        setIsLoading(false)
-        return
-      }
+    if (!isClient) return
 
-      try {
-        setIsLoading(true)
-        setError(null)
-        
-        // 目次データをパース
-        const parsedOutline = JSON.parse(decodeURIComponent(outlineParam))
-        setOutline(parsedOutline)
-        
-        const response = await fetch('/api/ai/generate-content', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            heading,
-            targetAudience,
-            outline: parsedOutline,
-          }),
-        })
+    const initializeOrRestoreArticle = async () => {
+      // URLパラメータから記事IDを取得（既存記事の復元）
+      const articleIdParam = searchParams.get('id')
+      
+      if (articleIdParam) {
+        // 既存記事の復元
+        try {
+          setIsLoading(true)
+          setError(null)
 
-        if (!response.ok) {
-          throw new Error('本文の生成に失敗しました')
+          const result = await getArticle(articleIdParam)
+          if (result.success && result.article) {
+            setArticleId(result.article.id)
+            setOutline(result.article.outline.map(section => ({
+              id: section.id,
+              section: section.section,
+              title: section.title,
+              description: section.description
+            })))
+            
+            // 既存のコンテンツを復元
+            const existingContent: Record<string, string> = {}
+            const existingCompleted: Record<string, boolean> = {}
+            
+            result.article.outline.forEach(section => {
+              existingContent[section.id] = section.content
+              existingCompleted[section.id] = section.isCompleted
+            })
+            
+            setContent(existingContent)
+            setIsCompleted(existingCompleted)
+            setGeneratedContent(result.article.outline.map(section => ({
+              id: section.id,
+              section: section.section,
+              title: section.title,
+              content: section.content,
+              isCompleted: section.isCompleted
+            })))
+            
+            setSuccess('記事を復元しました')
+          } else {
+            setError(result.error || '記事の取得に失敗しました')
+          }
+        } catch (error) {
+          console.error('Article restoration error:', error)
+          setError('記事の復元に失敗しました')
+        } finally {
+          setIsLoading(false)
+        }
+      } else {
+        // 新しい記事の作成
+        if (!heading || !theme || !targetAudience || !outlineParam) {
+          setError('必要な情報が不足しています')
+          setIsLoading(false)
+          return
         }
 
-        const data = await response.json()
-        setGeneratedContent(data.content || [])
-        
-        // 生成されたコンテンツを初期状態として設定
-        const initialContent: Record<string, string> = {}
-        data.content.forEach((section: ContentSection) => {
-          initialContent[section.id] = section.content
-        })
-        setContent(initialContent)
-      } catch (err) {
-        console.error('Error generating content:', err)
-        setError(err instanceof Error ? err.message : '本文の生成に失敗しました')
-      } finally {
-        setIsLoading(false)
+        try {
+          setIsLoading(true)
+          setError(null)
+
+          // アウトラインをパース
+          const parsedOutline = JSON.parse(decodeURIComponent(outlineParam))
+          setOutline(parsedOutline)
+
+          // 記事を作成
+          const articleResult = await createArticle({
+            title: heading,
+            theme,
+            targetAudience: targetAudience as 'beginner' | 'intermediate' | 'advanced',
+            heading,
+            outline: parsedOutline.map((section: any) => ({
+              id: section.id,
+              section: section.section,
+              title: section.title,
+              description: section.description,
+              content: '',
+              wordCount: 0,
+              isCompleted: false
+            }))
+          })
+
+          if (articleResult.success && articleResult.article) {
+            setArticleId(articleResult.article.id)
+            
+            // 各セクションの本文を生成
+            const generatedSections: ContentSection[] = []
+            
+            for (let i = 0; i < parsedOutline.length; i++) {
+              const section = parsedOutline[i]
+              setIsGenerating(true)
+              
+              // セクションの本文を生成
+              const sectionContent = await generateSectionContent(
+                section.title,
+                section.description,
+                theme,
+                targetAudience,
+                heading
+              )
+              
+              generatedSections.push({
+                id: section.id,
+                section: section.section,
+                title: section.title,
+                content: sectionContent,
+                isCompleted: false
+              })
+              
+              // 生成されたコンテンツを状態に保存
+              setContent(prev => ({
+                ...prev,
+                [section.id]: sectionContent
+              }))
+            }
+            
+            setGeneratedContent(generatedSections)
+            setSuccess('本文の生成が完了しました')
+          } else {
+            setError(articleResult.error || '記事の作成に失敗しました')
+          }
+          
+        } catch (error) {
+          console.error('Article initialization error:', error)
+          setError('記事の初期化に失敗しました')
+        } finally {
+          setIsGenerating(false)
+          setIsLoading(false)
+        }
       }
     }
 
-    generateContent()
-  }, [isClient, heading, targetAudience, outlineParam])
+    initializeOrRestoreArticle()
+  }, [isClient, heading, theme, targetAudience, outlineParam, searchParams])
 
   const handlePrevious = () => {
     if (currentSection > 0) {
@@ -114,13 +206,25 @@ export default function WritingPage() {
     }
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (!articleId || !currentOutline?.id) return
+    
     setIsSaving(true)
-    // 実際の保存処理をここに実装
-    setTimeout(() => {
+    try {
+      await autoSave.saveNow()
       setLastSaved(new Date())
+    } catch (error) {
+      console.error('Manual save error:', error)
+    } finally {
       setIsSaving(false)
-    }, 1000)
+    }
+  }
+
+  const handleSectionComplete = (sectionId: string, completed: boolean) => {
+    setIsCompleted(prev => ({
+      ...prev,
+      [sectionId]: completed
+    }))
   }
 
   const handleGenerate = async () => {
@@ -174,10 +278,21 @@ export default function WritingPage() {
 
   const currentOutline = outline[currentSection]
   const currentContent = content[currentOutline?.id] || ''
+  const currentCompleted = isCompleted[currentOutline?.id] || false
+
+  // 現在のセクションの自動保存
+  const autoSave = useAutoSave(currentContent, currentCompleted, {
+    articleId: articleId || '',
+    sectionId: currentOutline?.id || '',
+    delay: 2000,
+    enabled: !!articleId && !!currentOutline?.id
+  })
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
+    <AuthGuard>
+      <div className="min-h-screen bg-background">
+        <Header />
+        <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-8 flex items-center justify-between">
           <Link href="/outline-editing">
@@ -227,6 +342,31 @@ export default function WritingPage() {
           {/* Writing Interface */}
           {!isLoading && !error && (
             <>
+              {/* Auto Save Indicator */}
+              {articleId && currentOutline && (
+                <div className="flex items-center justify-between">
+                  <AutoSaveIndicator
+                    isSaving={autoSave.isSaving}
+                    lastSaved={autoSave.lastSaved}
+                    hasUnsavedChanges={autoSave.hasUnsavedChanges}
+                    error={autoSave.error}
+                  />
+                  <Button
+                    onClick={handleSave}
+                    disabled={isSaving || autoSave.isSaving}
+                    size="sm"
+                    variant="outline"
+                  >
+                    {isSaving ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Save className="mr-2 h-4 w-4" />
+                    )}
+                    手動保存
+                  </Button>
+                </div>
+              )}
+
               {/* Section Navigation */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -272,7 +412,21 @@ export default function WritingPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">内容</label>
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-medium">内容</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id={`completed-${currentOutline.id}`}
+                          checked={currentCompleted}
+                          onChange={(e) => handleSectionComplete(currentOutline.id, e.target.checked)}
+                          className="rounded border-gray-300"
+                        />
+                        <label htmlFor={`completed-${currentOutline.id}`} className="text-sm text-muted-foreground">
+                          完了
+                        </label>
+                      </div>
+                    </div>
                     <Textarea
                       value={currentContent}
                       onChange={(e) => {
@@ -288,6 +442,11 @@ export default function WritingPage() {
                       <span className="text-muted-foreground">
                         {currentContent.length}文字
                       </span>
+                      {currentCompleted && (
+                        <span className="text-green-600 text-sm font-medium">
+                          ✓ 完了済み
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -325,7 +484,24 @@ export default function WritingPage() {
             </>
           )}
         </div>
+        </div>
       </div>
-    </div>
+    </AuthGuard>
+  )
+}
+
+export default function WritingPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-background">
+        <Header />
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="ml-2 text-muted-foreground">読み込み中...</p>
+        </div>
+      </div>
+    }>
+      <WritingContent />
+    </Suspense>
   )
 }

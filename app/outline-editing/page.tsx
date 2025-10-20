@@ -1,12 +1,14 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { ArrowLeft, Pencil, Trash2, Loader2, AlertCircle } from "lucide-react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
+import { AuthGuard } from "@/components/AuthGuard"
+import { Header } from "@/components/Header"
 
 interface OutlineSection {
   id: string;
@@ -15,7 +17,7 @@ interface OutlineSection {
   description: string;
 }
 
-export default function OutlineEditingPage() {
+function OutlineEditingContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [outline, setOutline] = useState<OutlineSection[]>([])
@@ -105,8 +107,10 @@ export default function OutlineEditingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8">
+    <AuthGuard>
+      <div className="min-h-screen bg-background">
+        <Header />
+        <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-8 flex items-center justify-between">
           <Link href="/heading-selection">
@@ -205,7 +209,24 @@ export default function OutlineEditingPage() {
             </Button>
           </div>
         </div>
+        </div>
       </div>
-    </div>
+    </AuthGuard>
+  )
+}
+
+export default function OutlineEditingPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-background">
+        <Header />
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="ml-2 text-muted-foreground">読み込み中...</p>
+        </div>
+      </div>
+    }>
+      <OutlineEditingContent />
+    </Suspense>
   )
 }

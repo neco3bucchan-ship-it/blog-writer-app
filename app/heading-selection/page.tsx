@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input"
 import { ArrowLeft, Loader2, Pencil, AlertCircle } from "lucide-react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
+import { AuthGuard } from "@/components/AuthGuard"
+import { Header } from "@/components/Header"
 
 interface HeadingOption {
   id: string;
@@ -15,7 +17,7 @@ interface HeadingOption {
   description: string;
 }
 
-export default function HeadingSelectionPage() {
+function HeadingSelectionContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [selectedHeading, setSelectedHeading] = useState("")
@@ -100,8 +102,10 @@ export default function HeadingSelectionPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8">
+    <AuthGuard>
+      <div className="min-h-screen bg-background">
+        <Header />
+        <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-8 flex items-center justify-between">
           <Link href="/theme-input">
@@ -202,7 +206,24 @@ export default function HeadingSelectionPage() {
             </Button>
           </div>
         </div>
+        </div>
       </div>
-    </div>
+    </AuthGuard>
+  )
+}
+
+export default function HeadingSelectionPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-background">
+        <Header />
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="ml-2 text-muted-foreground">読み込み中...</p>
+        </div>
+      </div>
+    }>
+      <HeadingSelectionContent />
+    </Suspense>
   )
 }
