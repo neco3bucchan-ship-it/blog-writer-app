@@ -1,11 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { getAuthenticatedUser, verifyArticleOwnership } from '@/lib/auth-helpers'
 
-// サーバーサイド用のSupabaseクライアント
-const supabaseServer = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co',
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key'
-)
+function unauthorizedResponse(message: string) {
+  return NextResponse.json(
+    { success: false, error: message },
+    { status: 401 }
+  )
+}
+
+function notFoundResponse(message: string) {
+  return NextResponse.json(
+    { success: false, error: message },
+    { status: 404 }
+  )
+}
+
+function serverErrorResponse(message: string = 'サーバーエラーが発生しました') {
+  return NextResponse.json(
+    { success: false, error: message },
+    { status: 500 }
+  )
+}
 
 // セクション更新
 export async function PUT(
@@ -17,38 +32,14 @@ export async function PUT(
     const body = await request.json()
     const { content, isCompleted } = body
 
-    // 認証確認
-    const authHeader = request.headers.get('authorization')
-    if (!authHeader) {
-      return NextResponse.json(
-        { error: '認証が必要です' },
-        { status: 401 }
-      )
+    const { supabase, user, error: authError } = await getAuthenticatedUser(request)
+    if (!user || authError) {
+      return unauthorizedResponse(authError || '認証に失敗しました')
     }
 
-    const token = authHeader.replace('Bearer ', '')
-    const { data: { user }, error: authError } = await supabaseServer.auth.getUser(token)
-    
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: '認証に失敗しました' },
-        { status: 401 }
-      )
-    }
-
-    // 記事の所有権確認
-    const { data: article, error: articleError } = await supabaseServer
-      .from('articles')
-      .select('id')
-      .eq('id', id)
-      .eq('user_id', user.id)
-      .single()
-
-    if (articleError || !article) {
-      return NextResponse.json(
-        { error: '記事が見つかりません' },
-        { status: 404 }
-      )
+    const { isOwner } = await verifyArticleOwnership(supabase, id, user.id)
+    if (!isOwner) {
+      return notFoundResponse('記事が見つかりません')
     }
 
     // セクション更新
@@ -62,7 +53,7 @@ export async function PUT(
       updateData.is_completed = isCompleted
     }
 
-    const { data: section, error: sectionError } = await supabaseServer
+    const { data: section, error: sectionError } = await supabase
       .from('article_sections')
       .update(updateData)
       .eq('id', sectionId)
@@ -72,16 +63,10 @@ export async function PUT(
 
     if (sectionError) {
       if (sectionError.code === 'PGRST116') {
-        return NextResponse.json(
-          { error: 'セクションが見つかりません' },
-          { status: 404 }
-        )
+        return notFoundResponse('セクションが見つかりません')
       }
       console.error('Section update error:', sectionError)
-      return NextResponse.json(
-        { error: 'セクションの更新に失敗しました' },
-        { status: 500 }
-      )
+      return serverErrorResponse('セクションの更新に失敗しました')
     }
 
     return NextResponse.json({
@@ -99,10 +84,7 @@ export async function PUT(
 
   } catch (error) {
     console.error('API Error:', error)
-    return NextResponse.json(
-      { error: 'サーバーエラーが発生しました' },
-      { status: 500 }
-    )
+    return serverErrorResponse()
   }
 }
 
@@ -114,42 +96,18 @@ export async function DELETE(
   try {
     const { id, sectionId } = params
 
-    // 認証確認
-    const authHeader = request.headers.get('authorization')
-    if (!authHeader) {
-      return NextResponse.json(
-        { error: '認証が必要です' },
-        { status: 401 }
-      )
+    const { supabase, user, error: authError } = await getAuthenticatedUser(request)
+    if (!user || authError) {
+      return unauthorizedResponse(authError || '認証に失敗しました')
     }
 
-    const token = authHeader.replace('Bearer ', '')
-    const { data: { user }, error: authError } = await supabaseServer.auth.getUser(token)
-    
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: '認証に失敗しました' },
-        { status: 401 }
-      )
-    }
-
-    // 記事の所有権確認
-    const { data: article, error: articleError } = await supabaseServer
-      .from('articles')
-      .select('id')
-      .eq('id', id)
-      .eq('user_id', user.id)
-      .single()
-
-    if (articleError || !article) {
-      return NextResponse.json(
-        { error: '記事が見つかりません' },
-        { status: 404 }
-      )
+    const { isOwner } = await verifyArticleOwnership(supabase, id, user.id)
+    if (!isOwner) {
+      return notFoundResponse('記事が見つかりません')
     }
 
     // セクション削除
-    const { error } = await supabaseServer
+    const { error } = await supabase
       .from('article_sections')
       .delete()
       .eq('id', sectionId)
@@ -157,10 +115,7 @@ export async function DELETE(
 
     if (error) {
       console.error('Section delete error:', error)
-      return NextResponse.json(
-        { error: 'セクションの削除に失敗しました' },
-        { status: 500 }
-      )
+      return serverErrorResponse('セクションの削除に失敗しました')
     }
 
     return NextResponse.json({
@@ -170,9 +125,6 @@ export async function DELETE(
 
   } catch (error) {
     console.error('API Error:', error)
-    return NextResponse.json(
-      { error: 'サーバーエラーが発生しました' },
-      { status: 500 }
-    )
+    return serverErrorResponse()
   }
 }

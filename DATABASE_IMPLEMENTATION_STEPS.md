@@ -14,24 +14,31 @@
    - @supabase/ssr
    - uuid, @types/uuid
 
-3. **Step 4: 認証コンテキストの作成** ✅
+3. **Step 3: データベーススキーマの実装** ✅
+   - `profiles` / `articles` / `article_sections` テーブル作成
+   - updated_atトリガー・プロフィール生成トリガー設定
+   - RLS（Row Level Security）ポリシー適用
+
+4. **Step 4: 認証コンテキストの作成** ✅
    - SimpleSupabaseAuthContext実装
    - 認証状態管理
    - ログイン・ログアウト機能
 
-4. **Step 5: 認証UI画面の実装** ✅
+5. **Step 5: 認証UI画面の実装** ✅
    - ログイン画面（/auth/simple-login）
    - サインアップ画面（/auth/simple-signup）
    - エラーハンドリング
 
-5. **Step 6: プロテクテッドルートの実装** ✅
+6. **Step 6: プロテクテッドルートの実装** ✅
    - SimpleSupabaseAuthGuard実装
    - 認証ガード機能
    - リダイレクト処理
 
 ### 🔄 次のステップ（これから実装）
 
-**Step 3: データベーススキーマの実装**
+**Step 7: 記事CRUD APIの実装**
+
+> Step 3は完了しました。以下は実行した内容の記録として残しています。
 
 ---
 

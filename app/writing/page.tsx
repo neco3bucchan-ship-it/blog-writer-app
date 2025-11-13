@@ -205,16 +205,26 @@ function WritingContent() {
           if (articleResult.success && articleResult.article) {
             setArticleId(articleResult.article.id)
             
+            // 作成されたセクション情報を取得（実際のIDを含む）
+            const createdSections = articleResult.article.outline || []
+            
+            // パースされたアウトラインを、作成されたセクションIDで更新
+            const updatedOutline = parsedOutline.map((section: any, index: number) => ({
+              ...section,
+              id: createdSections[index]?.id || section.id
+            }))
+            setOutline(updatedOutline)
+            
             // 各セクションの本文を生成
             const generatedSections: ContentSection[] = []
             
             try {
               setIsGenerating(true)
               
-              for (let i = 0; i < parsedOutline.length; i++) {
-                const section = parsedOutline[i]
+              for (let i = 0; i < updatedOutline.length; i++) {
+                const section = updatedOutline[i]
                 
-                console.log(`Generating content for section ${i + 1}/${parsedOutline.length}: ${section.title}`)
+                console.log(`Generating content for section ${i + 1}/${updatedOutline.length}: ${section.title}`)
                 
                 try {
                   // セクションの本文を生成

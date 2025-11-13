@@ -1,12 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
-import { createClient } from '@supabase/supabase-js'
+import { ensureProfileExists, getAuthenticatedUser } from '@/lib/auth-helpers'
 
-// サーバーサイド用のSupabaseクライアント
-const supabaseServer = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co',
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key'
-)
+function unauthorizedResponse(message: string) {
+  return NextResponse.json(
+    { success: false, error: message },
+    { status: 401 }
+  )
+}
+
+function serverErrorResponse(message: string = 'サーバーエラーが発生しました') {
+  return NextResponse.json(
+    { success: false, error: message },
+    { status: 500 }
+  )
+}
 
 // 記事作成
 export async function POST(request: NextRequest) {
@@ -30,27 +37,15 @@ export async function POST(request: NextRequest) {
     }
 
     // 認証確認
-    const authHeader = request.headers.get('authorization')
-    if (!authHeader) {
-      return NextResponse.json(
-        { error: '認証が必要です' },
-        { status: 401 }
-      )
+    const { supabase, user, error: authError } = await getAuthenticatedUser(request)
+    if (!user || authError) {
+      return unauthorizedResponse(authError || '認証に失敗しました')
     }
 
-    // JWTトークンの検証
-    const token = authHeader.replace('Bearer ', '')
-    const { data: { user }, error: authError } = await supabaseServer.auth.getUser(token)
-    
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: '認証に失敗しました' },
-        { status: 401 }
-      )
-    }
+    await ensureProfileExists(supabase, user)
 
     // 記事作成
-    const { data: article, error: articleError } = await supabaseServer
+    const { data: article, error: articleError } = await supabase
       .from('articles')
       .insert({
         user_id: user.id,
@@ -65,13 +60,11 @@ export async function POST(request: NextRequest) {
 
     if (articleError) {
       console.error('Article creation error:', articleError)
-      return NextResponse.json(
-        { error: '記事の作成に失敗しました' },
-        { status: 500 }
-      )
+      return serverErrorResponse('記事の作成に失敗しました')
     }
 
     // 記事セクション作成
+    let createdSections: any[] = []
     if (outline && Array.isArray(outline)) {
       const sections = outline.map((section: any, index: number) => ({
         article_id: article.id,
@@ -83,13 +76,16 @@ export async function POST(request: NextRequest) {
         is_completed: false
       }))
 
-      const { error: sectionsError } = await supabaseServer
+      const { data: sectionsData, error: sectionsError } = await supabase
         .from('article_sections')
         .insert(sections)
+        .select()
 
       if (sectionsError) {
         console.error('Sections creation error:', sectionsError)
         // 記事は作成されているので、エラーを返さない
+      } else {
+        createdSections = sectionsData || []
       }
     }
 
@@ -102,17 +98,24 @@ export async function POST(request: NextRequest) {
         targetAudience: article.target_audience,
         heading: article.heading,
         status: article.status,
+        progress: 0,
         createdAt: article.created_at,
-        updatedAt: article.updated_at
+        updatedAt: article.updated_at,
+        outline: createdSections.map((section: any) => ({
+          id: section.id,
+          section: section.section_number,
+          title: section.title,
+          description: section.description,
+          content: section.content,
+          wordCount: section.word_count,
+          isCompleted: section.is_completed
+        }))
       }
     })
 
   } catch (error) {
     console.error('API Error:', error)
-    return NextResponse.json(
-      { error: 'サーバーエラーが発生しました' },
-      { status: 500 }
-    )
+    return serverErrorResponse()
   }
 }
 
@@ -120,26 +123,13 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     // 認証確認
-    const authHeader = request.headers.get('authorization')
-    if (!authHeader) {
-      return NextResponse.json(
-        { error: '認証が必要です' },
-        { status: 401 }
-      )
-    }
-
-    const token = authHeader.replace('Bearer ', '')
-    const { data: { user }, error: authError } = await supabaseServer.auth.getUser(token)
-    
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: '認証に失敗しました' },
-        { status: 401 }
-      )
+    const { supabase, user, error: authError } = await getAuthenticatedUser(request)
+    if (!user || authError) {
+      return unauthorizedResponse(authError || '認証に失敗しました')
     }
 
     // ユーザーの記事一覧取得
-    const { data: articles, error } = await supabaseServer
+    const { data: articles, error } = await supabase
       .from('articles')
       .select(`
         id,
@@ -162,10 +152,7 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       console.error('Articles fetch error:', error)
-      return NextResponse.json(
-        { error: '記事の取得に失敗しました' },
-        { status: 500 }
-      )
+      return serverErrorResponse('記事の取得に失敗しました')
     }
 
     // 進捗率の計算
@@ -194,9 +181,6 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     console.error('API Error:', error)
-    return NextResponse.json(
-      { error: 'サーバーエラーが発生しました' },
-      { status: 500 }
-    )
+    return serverErrorResponse()
   }
 }
