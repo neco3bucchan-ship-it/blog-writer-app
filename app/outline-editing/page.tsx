@@ -7,8 +7,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { ArrowLeft, Pencil, Trash2, Loader2, AlertCircle } from "lucide-react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
-import { AuthGuard } from "@/components/AuthGuard"
-import { Header } from "@/components/Header"
+import { SimpleSupabaseAuthGuard } from "@/components/SimpleSupabaseAuthGuard"
+import { SimpleSupabaseHeader } from "@/components/SimpleSupabaseHeader"
 
 interface OutlineSection {
   id: string;
@@ -107,9 +107,9 @@ function OutlineEditingContent() {
   }
 
   return (
-    <AuthGuard>
+    <SimpleSupabaseAuthGuard>
       <div className="min-h-screen bg-background">
-        <Header />
+        <SimpleSupabaseHeader />
         <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-8 flex items-center justify-between">
@@ -211,7 +211,7 @@ function OutlineEditingContent() {
         </div>
         </div>
       </div>
-    </AuthGuard>
+    </SimpleSupabaseAuthGuard>
   )
 }
 
@@ -219,7 +219,7 @@ export default function OutlineEditingPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen bg-background">
-        <Header />
+        <SimpleSupabaseHeader />
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
           <p className="ml-2 text-muted-foreground">読み込み中...</p>

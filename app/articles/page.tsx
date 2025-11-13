@@ -5,8 +5,8 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { PenLine, Trash2, Clock, Calendar, Loader2 } from "lucide-react"
 import Link from "next/link"
-import { AuthGuard } from "@/components/AuthGuard"
-import { Header } from "@/components/Header"
+import { SimpleSupabaseAuthGuard } from "@/components/SimpleSupabaseAuthGuard"
+import { SimpleSupabaseHeader } from "@/components/SimpleSupabaseHeader"
 import { getArticles, deleteArticle, type Article } from "@/lib/article-service"
 
 export default function ArticlesPage() {
@@ -57,9 +57,9 @@ export default function ArticlesPage() {
   }
 
   return (
-    <AuthGuard>
+    <SimpleSupabaseAuthGuard>
       <div className="min-h-screen bg-background">
-        <Header />
+        <SimpleSupabaseHeader />
         <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-8 flex items-center justify-between">
@@ -154,6 +154,6 @@ export default function ArticlesPage() {
         )}
         </div>
       </div>
-    </AuthGuard>
+    </SimpleSupabaseAuthGuard>
   )
 }

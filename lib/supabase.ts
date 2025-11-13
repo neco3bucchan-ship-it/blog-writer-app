@@ -4,8 +4,15 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co'
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key'
 
+// Supabase設定が正しく行われているかの確認
+export const isSupabaseConfigured = 
+  supabaseUrl !== 'https://placeholder.supabase.co' && 
+  supabaseAnonKey !== 'placeholder-key' &&
+  supabaseUrl.startsWith('https://') &&
+  supabaseAnonKey.length > 20
+
 // 開発環境での警告
-if (process.env.NODE_ENV === 'development' && (supabaseUrl === 'https://placeholder.supabase.co' || supabaseAnonKey === 'placeholder-key')) {
+if (process.env.NODE_ENV === 'development' && !isSupabaseConfigured) {
   console.warn('Supabase environment variables are not set. Please configure .env.local file.')
 }
 

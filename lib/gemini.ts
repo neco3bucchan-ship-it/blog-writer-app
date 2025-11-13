@@ -2,7 +2,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // Gemini API設定
 const genAI = new GoogleGenerativeAI(process.env.NEXT_PUBLIC_GEMINI_API_KEY || '');
-const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
 
 // 見出し生成の型定義
 export interface HeadingOption {
@@ -310,6 +310,113 @@ export async function generateOutline(request: GenerateOutlineRequest): Promise<
         }
       ]
     };
+  }
+}
+
+// 個別セクションのコンテンツ生成関数
+export interface GenerateSectionContentRequest {
+  sectionTitle: string;
+  sectionDescription: string;
+  theme: string;
+  targetAudience: string;
+  heading: string;
+}
+
+export async function generateSectionContent(request: GenerateSectionContentRequest): Promise<string> {
+  try {
+    console.log('generateSectionContent called with:', {
+      sectionTitle: request.sectionTitle,
+      hasDescription: !!request.sectionDescription,
+      theme: request.theme,
+      targetAudience: request.targetAudience
+    });
+    
+    // APIキーが設定されていない場合はテンプレートを返す
+    if (!process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY === 'your_gemini_api_key_here') {
+      console.log('Using template data for section content generation (API key not configured)');
+      const audienceLevel = request.targetAudience === 'beginner' ? '初心者' : request.targetAudience === 'intermediate' ? '中級者' : '上級者';
+      return `# ${request.sectionTitle}
+
+${request.sectionDescription}
+
+## 概要
+
+このセクションでは、「${request.sectionTitle}」について、${audienceLevel}向けに詳しく解説します。${request.theme}に関する内容を、実践的な例を交えながら説明していきます。
+
+## 詳細説明
+
+（ここに詳しい説明を記入してください）
+
+具体的な手順や例を含めて、読者が理解しやすいように説明します。
+
+## 実践例
+
+実際の使用例やコードサンプルを示すことで、理解を深めます。
+
+## まとめ
+
+このセクションで学んだ内容をまとめます。`;
+    }
+
+    const audienceLevel = request.targetAudience === 'beginner' ? '初心者' : request.targetAudience === 'intermediate' ? '中級者' : '上級者';
+    
+    console.log('Calling Gemini API for content generation...');
+    
+    const prompt = `
+記事見出し: ${request.heading}
+テーマ: ${request.theme}
+ターゲット読者: ${audienceLevel}
+
+以下のセクションについて、詳細な本文を生成してください：
+
+セクションタイトル: ${request.sectionTitle}
+セクション説明: ${request.sectionDescription || 'なし'}
+
+要件：
+- ${audienceLevel}が理解しやすい言葉で説明すること
+- 具体的な例や実践的な内容を含めること
+- 文字数は500-1000文字程度
+- Markdown形式で記述すること
+- 見出し（##）、箇条書き、コードブロックなどを適切に使用すること
+- 読者が行動を起こせるような具体的な情報を含めること
+
+本文をMarkdown形式で生成してください。JSON形式ではなく、直接本文を返してください。
+`;
+
+    console.log('Prompt created, sending to Gemini API...');
+    
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
+    
+    console.log('Gemini API response received, text length:', text.length);
+    
+    // Gemini APIが返すテキストをそのまま返す
+    return text.trim();
+  } catch (error) {
+    console.error('Gemini API error for section content:', error);
+    console.error('Error details:', error instanceof Error ? error.message : 'Unknown error');
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    
+    // APIエラーの場合はテンプレートを返す
+    const audienceLevel = request.targetAudience === 'beginner' ? '初心者' : request.targetAudience === 'intermediate' ? '中級者' : '上級者';
+    return `# ${request.sectionTitle}
+
+${request.sectionDescription || ''}
+
+## 概要
+
+このセクションでは、「${request.sectionTitle}」について、${audienceLevel}向けに詳しく解説します。
+
+（AIコンテンツ生成中にエラーが発生しました。手動で本文を入力してください）
+
+## 詳細説明
+
+ここに詳しい説明を記入してください。
+
+## まとめ
+
+このセクションで学んだ内容をまとめます。`;
   }
 }
 

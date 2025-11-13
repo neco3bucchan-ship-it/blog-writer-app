@@ -4,18 +4,24 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { PenLine, Clock, FileText, Sparkles, CheckCircle } from "lucide-react"
 import Link from "next/link"
-import { Header } from "@/components/Header"
-import { useAuth } from "@/contexts/AuthContext"
+import { SimpleSupabaseHeader } from "@/components/SimpleSupabaseHeader"
+import { useSimpleSupabaseAuth } from "@/contexts/SimpleSupabaseAuthContext"
 import { getArticles, type Article } from "@/lib/article-service"
 
 export default function LandingPage() {
-  const { user } = useAuth()
+  const { user } = useSimpleSupabaseAuth()
   const [recentArticles, setRecentArticles] = useState<Article[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [isClient, setIsClient] = useState(false)
+
+  // クライアントサイドの確認
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
 
   // 認証済みユーザーの最近の記事を取得
   useEffect(() => {
-    if (user) {
+    if (user && isClient) {
       const fetchRecentArticles = async () => {
         setIsLoading(true)
         try {
@@ -32,11 +38,11 @@ export default function LandingPage() {
       }
       fetchRecentArticles()
     }
-  }, [user])
+  }, [user, isClient])
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
+      <SimpleSupabaseHeader />
       <div className="mx-auto max-w-4xl px-4 py-16 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-16 text-center">
@@ -61,12 +67,12 @@ export default function LandingPage() {
                 ログインして記事を執筆しましょう
               </p>
               <div className="flex gap-4 justify-center">
-                <Link href="/auth/login">
+                <Link href="/auth/simple-login">
                   <Button size="lg" variant="outline" className="h-12 px-8 text-base">
                     ログイン
                   </Button>
                 </Link>
-                <Link href="/auth/signup">
+                <Link href="/auth/simple-signup">
                   <Button size="lg" className="h-12 px-8 text-base">
                     新規登録
                   </Button>
@@ -77,7 +83,7 @@ export default function LandingPage() {
         </div>
 
         {/* Recent Articles - 認証済みユーザーのみ表示 */}
-        {user && (
+        {isClient && user && (
           <div>
             <h2 className="mb-6 text-xl font-semibold">最近の記事</h2>
             {isLoading ? (
@@ -96,7 +102,11 @@ export default function LandingPage() {
                             <div className="flex items-center gap-4 text-sm text-muted-foreground">
                               <span className="flex items-center gap-1">
                                 <Clock className="h-3.5 w-3.5" />
-                                {new Date(article.updatedAt).toLocaleDateString('ja-JP')}
+                                {new Date(article.updatedAt).toLocaleDateString('ja-JP', {
+                                  year: 'numeric',
+                                  month: '2-digit',
+                                  day: '2-digit'
+                                })}
                               </span>
                               <span className="flex items-center gap-1">
                                 <FileText className="h-3.5 w-3.5" />

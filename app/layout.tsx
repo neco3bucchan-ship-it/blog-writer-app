@@ -2,7 +2,8 @@ import type React from "react"
 import type { Metadata } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
-import { AuthProvider } from "@/contexts/AuthContext"
+import { SimpleSupabaseAuthProvider } from "@/contexts/SimpleSupabaseAuthContext"
+import { ThemeProvider } from "@/components/theme-provider"
 import { Footer } from "@/components/Footer"
 import "./globals.css"
 
@@ -21,16 +22,23 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="ja">
-      <body className={`font-sans antialiased`} suppressHydrationWarning={true}>
-        <AuthProvider>
-          <div className="flex min-h-screen flex-col">
-            <main className="flex-1">
-              {children}
-            </main>
-            <Footer />
-          </div>
-        </AuthProvider>
+    <html lang="ja" suppressHydrationWarning>
+      <body className={`font-sans antialiased`} suppressHydrationWarning>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <SimpleSupabaseAuthProvider>
+            <div className="flex min-h-screen flex-col">
+              <main className="flex-1">
+                {children}
+              </main>
+              <Footer />
+            </div>
+          </SimpleSupabaseAuthProvider>
+        </ThemeProvider>
         <Analytics />
       </body>
     </html>

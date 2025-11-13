@@ -6,8 +6,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { ArrowLeft, ChevronLeft, ChevronRight, Save, Sparkles, Loader2, AlertCircle } from "lucide-react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
-import { AuthGuard } from "@/components/AuthGuard"
-import { Header } from "@/components/Header"
+import { SimpleSupabaseAuthGuard } from "@/components/SimpleSupabaseAuthGuard"
+import { SimpleSupabaseHeader } from "@/components/SimpleSupabaseHeader"
 import { useAutoSave } from "@/hooks/useAutoSave"
 import { AutoSaveIndicator } from "@/components/AutoSaveIndicator"
 import { createArticle, updateArticle, getArticle } from "@/lib/article-service"
@@ -25,6 +25,67 @@ interface ContentSection {
   title: string;
   content: string;
   isCompleted?: boolean;
+}
+
+// セクションの本文を生成する関数（Gemini AI使用）
+async function generateSectionContent(
+  sectionTitle: string,
+  sectionDescription: string,
+  theme: string,
+  targetAudience: string,
+  heading: string
+): Promise<string> {
+  try {
+    console.log('Generating section content with AI:', { sectionTitle, theme, targetAudience, heading })
+    
+    const response = await fetch('/api/ai/generate-section-content', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        sectionTitle,
+        sectionDescription,
+        theme,
+        targetAudience,
+        heading
+      }),
+    })
+
+    if (!response.ok) {
+      console.error('AI generation failed with status:', response.status)
+      throw new Error('コンテンツ生成に失敗しました')
+    }
+
+    const data = await response.json()
+    console.log('AI content generated successfully')
+    return data.content || `# ${sectionTitle}\n\n${sectionDescription}\n\n（AIコンテンツ生成に失敗しました。手動で本文を入力してください）`
+  } catch (error) {
+    console.error('Generate content error:', error)
+    // エラー時のフォールバック
+    const audienceLevel = targetAudience === 'beginner' ? '初心者' : targetAudience === 'intermediate' ? '中級者' : '上級者'
+    return `# ${sectionTitle}
+
+${sectionDescription}
+
+## 概要
+
+このセクションでは、「${sectionTitle}」について、${audienceLevel}向けに詳しく解説します。${theme}に関する内容を、実践的な例を交えながら説明していきます。
+
+## 詳細説明
+
+（ここに詳しい説明を記入してください）
+
+具体的な手順や例を含めて、読者が理解しやすいように説明します。
+
+## 実践例
+
+実際の使用例やコードサンプルを示すことで、理解を深めます。
+
+## まとめ
+
+このセクションで学んだ内容をまとめます。`
+  }
 }
 
 function WritingContent() {
@@ -147,43 +208,92 @@ function WritingContent() {
             // 各セクションの本文を生成
             const generatedSections: ContentSection[] = []
             
-            for (let i = 0; i < parsedOutline.length; i++) {
-              const section = parsedOutline[i]
+            try {
               setIsGenerating(true)
               
-              // セクションの本文を生成
-              const sectionContent = await generateSectionContent(
-                section.title,
-                section.description,
-                theme,
-                targetAudience,
-                heading
-              )
+              for (let i = 0; i < parsedOutline.length; i++) {
+                const section = parsedOutline[i]
+                
+                console.log(`Generating content for section ${i + 1}/${parsedOutline.length}: ${section.title}`)
+                
+                try {
+                  // セクションの本文を生成
+                  const sectionContent = await generateSectionContent(
+                    section.title,
+                    section.description || '',
+                    theme,
+                    targetAudience,
+                    heading
+                  )
+                  
+                  generatedSections.push({
+                    id: section.id,
+                    section: section.section,
+                    title: section.title,
+                    content: sectionContent,
+                    isCompleted: false
+                  })
+                  
+                  // 生成されたコンテンツを状態に保存
+                  setContent(prev => ({
+                    ...prev,
+                    [section.id]: sectionContent
+                  }))
+                  
+                  console.log(`Section ${i + 1} generated successfully`)
+                } catch (sectionError) {
+                  console.error(`Failed to generate section ${i + 1}:`, sectionError)
+                  
+                  // セクション生成失敗時はテンプレートを使用
+                  const fallbackContent = `# ${section.title}
+
+${section.description || ''}
+
+## 概要
+
+このセクションでは、「${section.title}」について詳しく解説します。
+
+（AIコンテンツ生成に失敗しました。手動で本文を入力してください）
+
+## 詳細説明
+
+ここに詳しい説明を記入してください。
+
+## まとめ
+
+このセクションで学んだ内容をまとめます。`
+                  
+                  generatedSections.push({
+                    id: section.id,
+                    section: section.section,
+                    title: section.title,
+                    content: fallbackContent,
+                    isCompleted: false
+                  })
+                  
+                  setContent(prev => ({
+                    ...prev,
+                    [section.id]: fallbackContent
+                  }))
+                }
+              }
               
-              generatedSections.push({
-                id: section.id,
-                section: section.section,
-                title: section.title,
-                content: sectionContent,
-                isCompleted: false
-              })
-              
-              // 生成されたコンテンツを状態に保存
-              setContent(prev => ({
-                ...prev,
-                [section.id]: sectionContent
-              }))
+              setGeneratedContent(generatedSections)
+              setSuccess('本文の生成が完了しました')
+              console.log('All sections generated successfully')
+            } catch (generationError) {
+              console.error('Content generation error:', generationError)
+              setError('コンテンツ生成中にエラーが発生しました。一部のセクションは手動で入力してください。')
+            } finally {
+              setIsGenerating(false)
             }
-            
-            setGeneratedContent(generatedSections)
-            setSuccess('本文の生成が完了しました')
           } else {
             setError(articleResult.error || '記事の作成に失敗しました')
           }
           
         } catch (error) {
           console.error('Article initialization error:', error)
-          setError('記事の初期化に失敗しました')
+          setError(`記事の初期化に失敗しました: ${error instanceof Error ? error.message : '不明なエラー'}`)
         } finally {
           setIsGenerating(false)
           setIsLoading(false)
@@ -289,9 +399,9 @@ function WritingContent() {
   })
 
   return (
-    <AuthGuard>
-      <div className="min-h-screen bg-background">
-        <Header />
+      <SimpleSupabaseAuthGuard>
+        <div className="min-h-screen bg-background">
+          <SimpleSupabaseHeader />
         <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-8 flex items-center justify-between">
@@ -486,7 +596,7 @@ function WritingContent() {
         </div>
         </div>
       </div>
-    </AuthGuard>
+      </SimpleSupabaseAuthGuard>
   )
 }
 
@@ -494,7 +604,7 @@ export default function WritingPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen bg-background">
-        <Header />
+        <SimpleSupabaseHeader />
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
           <p className="ml-2 text-muted-foreground">読み込み中...</p>

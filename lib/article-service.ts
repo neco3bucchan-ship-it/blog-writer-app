@@ -81,7 +81,16 @@ export async function getArticles(): Promise<{ success: boolean; articles?: Arti
 
     if (error) {
       console.error('Articles fetch error:', error)
+      // テーブルが存在しない場合は空の配列を返す
+      if (error.code === '42P01' || error.message.includes('relation') || error.message.includes('does not exist')) {
+        return { success: true, articles: [] }
+      }
       return { success: false, error: '記事の取得に失敗しました' }
+    }
+    
+    // articlesがnullまたはundefinedの場合は空の配列を返す
+    if (!articles) {
+      return { success: true, articles: [] }
     }
 
     // 進捗率の計算

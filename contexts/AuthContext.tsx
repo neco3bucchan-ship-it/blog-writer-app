@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { User, Session, AuthError } from '@supabase/supabase-js'
-import { supabase } from '@/lib/supabase'
+import { supabase, isSupabaseConfigured } from '@/lib/supabase'
 
 // 認証状態の型定義
 interface AuthState {
@@ -33,6 +33,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // 認証状態の初期化
   useEffect(() => {
+    // Supabase設定の確認
+    if (!isSupabaseConfigured) {
+      setError('🔧 Supabaseの設定が必要です！\n\n📝 設定手順:\n1. Supabaseアカウントを作成\n2. プロジェクトを作成\n3. .env.localファイルに設定を追加\n4. 開発サーバーを再起動\n\n📖 詳細手順: 設定手順_小学生でもわかる.md を参照')
+      setLoading(false)
+      return
+    }
+
     // 現在のセッションを取得
     const getInitialSession = async () => {
       try {
@@ -46,7 +53,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       } catch (err) {
         console.error('Error in getInitialSession:', err)
-        setError('認証状態の取得に失敗しました')
+        let errorMessage = '認証状態の取得に失敗しました'
+        
+        if (err instanceof Error) {
+          if (err.message.includes('Failed to fetch')) {
+            errorMessage = '🔧 設定が必要です！\n\n1. Supabaseアカウントを作成\n2. プロジェクトを作成\n3. .env.localファイルに設定を追加\n\n📖 詳細手順: 設定手順_小学生でもわかる.md を参照'
+          } else if (err.message.includes('Supabase環境変数')) {
+            errorMessage = '🔧 Supabaseの設定が必要です！\n\n📖 設定手順: 設定手順_小学生でもわかる.md を参照してください'
+          } else {
+            errorMessage = err.message
+          }
+        }
+        
+        setError(errorMessage)
       } finally {
         setLoading(false)
       }
@@ -56,7 +75,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // 認証状態の変更を監視
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      async (event: string, session: Session | null) => {
         console.log('Auth state changed:', event, session?.user?.id)
         setSession(session)
         setUser(session?.user ?? null)
@@ -74,6 +93,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(true)
       setError(null)
 
+      // Supabase設定の確認
+      if (!isSupabaseConfigured) {
+        const errorMessage = '🔧 Supabaseの設定が必要です！\n\n📝 設定手順:\n1. Supabaseアカウントを作成\n2. プロジェクトを作成\n3. .env.localファイルに設定を追加\n4. 開発サーバーを再起動\n\n📖 詳細手順: 設定手順_小学生でもわかる.md を参照'
+        setError(errorMessage)
+        return { error: { message: errorMessage } as AuthError }
+      }
+
+      // ネットワーク接続の確認（クライアント側でのみ実行）
+      if (typeof window !== 'undefined' && !navigator.onLine) {
+        const errorMessage = 'ネットワーク接続を確認してください'
+        setError(errorMessage)
+        return { error: { message: errorMessage } as AuthError }
+      }
+      
+      // Supabase設定の確認
+      console.log('🔧 Supabase設定確認:')
+      console.log('isSupabaseConfigured:', isSupabaseConfigured)
+      console.log('Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL)
+      
+      if (!isSupabaseConfigured) {
+        const errorMessage = '🔧 Supabaseの設定が正しくありません！\n\n📝 確認事項:\n1. .env.localファイルが存在するか\n2. NEXT_PUBLIC_SUPABASE_URLが正しく設定されているか\n3. 開発サーバーを再起動したか\n\n📖 詳細手順: 設定手順_小学生でもわかる.md を参照'
+        setError(errorMessage)
+        return { error: { message: errorMessage } as AuthError }
+      }
+
+      console.log('🔧 Supabase signUp を実行中...')
+      console.log('Email:', email)
+      console.log('Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL)
+      
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -83,15 +131,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         }
       })
+      
+      console.log('Supabase signUp 結果:', { data, error })
 
       if (error) {
+        console.error('Supabase signUp error:', error)
         setError(error.message)
         return { error }
       }
 
       return { error: null }
     } catch (err) {
-      const errorMessage = 'ユーザー登録に失敗しました'
+      console.error('SignUp error:', err)
+      let errorMessage = 'ユーザー登録に失敗しました'
+      
+      if (err instanceof Error) {
+        if (err.message.includes('Failed to fetch')) {
+          errorMessage = '🔧 設定が必要です！\n\n1. Supabaseアカウントを作成\n2. プロジェクトを作成\n3. .env.localファイルに設定を追加\n\n📖 詳細手順: SUPABASE_SETUP.md を参照'
+        } else if (err.message.includes('Supabase環境変数')) {
+          errorMessage = '🔧 Supabaseの設定が必要です！\n\n📖 設定手順: SUPABASE_SETUP.md を参照してください'
+        } else {
+          errorMessage = err.message
+        }
+      }
+      
       setError(errorMessage)
       return { error: { message: errorMessage } as AuthError }
     } finally {
@@ -105,19 +168,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(true)
       setError(null)
 
+      // Supabase設定の確認
+      if (!isSupabaseConfigured) {
+        const errorMessage = '🔧 Supabaseの設定が必要です！\n\n📝 設定手順:\n1. Supabaseアカウントを作成\n2. プロジェクトを作成\n3. .env.localファイルに設定を追加\n4. 開発サーバーを再起動\n\n📖 詳細手順: 設定手順_小学生でもわかる.md を参照'
+        setError(errorMessage)
+        return { error: { message: errorMessage } as AuthError }
+      }
+
+      // ネットワーク接続の確認（クライアント側でのみ実行）
+      if (typeof window !== 'undefined' && !navigator.onLine) {
+        const errorMessage = 'ネットワーク接続を確認してください'
+        setError(errorMessage)
+        return { error: { message: errorMessage } as AuthError }
+      }
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password
       })
 
       if (error) {
+        console.error('Supabase signIn error:', error)
         setError(error.message)
         return { error }
       }
 
       return { error: null }
     } catch (err) {
-      const errorMessage = 'ログインに失敗しました'
+      console.error('SignIn error:', err)
+      let errorMessage = 'ログインに失敗しました'
+      
+      if (err instanceof Error) {
+        if (err.message.includes('Failed to fetch')) {
+          errorMessage = '🔧 設定が必要です！\n\n1. Supabaseアカウントを作成\n2. プロジェクトを作成\n3. .env.localファイルに設定を追加\n\n📖 詳細手順: SUPABASE_SETUP.md を参照'
+        } else if (err.message.includes('Supabase環境変数')) {
+          errorMessage = '🔧 Supabaseの設定が必要です！\n\n📖 設定手順: SUPABASE_SETUP.md を参照してください'
+        } else {
+          errorMessage = err.message
+        }
+      }
+      
       setError(errorMessage)
       return { error: { message: errorMessage } as AuthError }
     } finally {

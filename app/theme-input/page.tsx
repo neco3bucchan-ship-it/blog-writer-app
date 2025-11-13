@@ -8,8 +8,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { ArrowLeft, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { AuthGuard } from "@/components/AuthGuard"
-import { Header } from "@/components/Header"
+import { SimpleSupabaseAuthGuard } from "@/components/SimpleSupabaseAuthGuard"
+import { SimpleSupabaseHeader } from "@/components/SimpleSupabaseHeader"
 
 export default function ThemeInputPage() {
   const router = useRouter()
@@ -52,9 +52,9 @@ export default function ThemeInputPage() {
   }
 
   return (
-    <AuthGuard>
+    <SimpleSupabaseAuthGuard>
       <div className="min-h-screen bg-background">
-        <Header />
+        <SimpleSupabaseHeader />
         <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-8 flex items-center justify-between">
@@ -144,6 +144,6 @@ export default function ThemeInputPage() {
         </div>
         </div>
       </div>
-    </AuthGuard>
+    </SimpleSupabaseAuthGuard>
   )
 }
