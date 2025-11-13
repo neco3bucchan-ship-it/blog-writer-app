@@ -69,6 +69,11 @@ export async function GET(
       return serverErrorResponse(articleError.message || '記事の取得に失敗しました')
     }
 
+    // セクションをsection_numberでソート
+    const sortedSections = article.article_sections
+      ? [...article.article_sections].sort((a: any, b: any) => a.section_number - b.section_number)
+      : []
+
     return NextResponse.json({
       success: true,
       article: {
@@ -81,7 +86,7 @@ export async function GET(
         progress: 0,
         createdAt: article.created_at,
         updatedAt: article.updated_at,
-        outline: article.article_sections?.map((section: any) => ({
+        outline: sortedSections.map((section: any) => ({
           id: section.id,
           section: section.section_number,
           title: section.title,
@@ -89,7 +94,7 @@ export async function GET(
           content: section.content,
           wordCount: section.word_count,
           isCompleted: section.is_completed
-        })) || []
+        }))
       }
     })
 

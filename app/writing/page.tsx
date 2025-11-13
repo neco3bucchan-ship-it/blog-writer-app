@@ -10,7 +10,7 @@ import { SimpleSupabaseAuthGuard } from "@/components/SimpleSupabaseAuthGuard"
 import { SimpleSupabaseHeader } from "@/components/SimpleSupabaseHeader"
 import { useAutoSave } from "@/hooks/useAutoSave"
 import { AutoSaveIndicator } from "@/components/AutoSaveIndicator"
-import { createArticle, updateArticle, getArticle } from "@/lib/article-service"
+import { createArticle, updateArticle, getArticle, updateArticleSection } from "@/lib/article-service"
 
 interface OutlineSection {
   id: string;
@@ -102,11 +102,22 @@ function WritingContent() {
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [articleId, setArticleId] = useState<string | null>(null)
   const [isCompleted, setIsCompleted] = useState<Record<string, boolean>>({})
+  
+  // 記事の基本情報
+  const [articleInfo, setArticleInfo] = useState<{
+    title: string
+    theme: string
+    targetAudience: string
+  }>({
+    title: searchParams.get('heading') || '',
+    theme: searchParams.get('theme') || '',
+    targetAudience: searchParams.get('targetAudience') || ''
+  })
 
-  // URLパラメータから情報を取得
-  const heading = searchParams.get('heading') || ''
-  const theme = searchParams.get('theme') || ''
-  const targetAudience = searchParams.get('targetAudience') || ''
+  // URLパラメータから情報を取得（後方互換性のため残す）
+  const heading = articleInfo.title || searchParams.get('heading') || ''
+  const theme = articleInfo.theme || searchParams.get('theme') || ''
+  const targetAudience = articleInfo.targetAudience || searchParams.get('targetAudience') || ''
   const outlineParam = searchParams.get('outline') || ''
 
   // ハイドレーション問題を防ぐため、クライアントサイドでのみ実行
@@ -133,6 +144,14 @@ function WritingContent() {
           const result = await getArticle(articleIdParam)
           if (result.success && result.article) {
             setArticleId(result.article.id)
+            
+            // 記事の基本情報を復元
+            setArticleInfo({
+              title: result.article.title || result.article.heading,
+              theme: result.article.theme,
+              targetAudience: result.article.targetAudience
+            })
+            
             setOutline(result.article.outline.map(section => ({
               id: section.id,
               section: section.section,
@@ -160,6 +179,8 @@ function WritingContent() {
             })))
             
             setSuccess('記事を復元しました')
+            // 成功メッセージを3秒後に自動で消す
+            setTimeout(() => setSuccess(null), 3000)
           } else {
             setError(result.error || '記事の取得に失敗しました')
           }
@@ -289,7 +310,25 @@ ${section.description || ''}
               }
               
               setGeneratedContent(generatedSections)
-              setSuccess('本文の生成が完了しました')
+              
+              // AI生成されたコンテンツをデータベースに保存
+              console.log('Saving generated content to database...')
+              try {
+                for (const section of generatedSections) {
+                  await updateArticleSection(articleResult.article.id, section.id, {
+                    content: section.content,
+                    isCompleted: false
+                  })
+                }
+                console.log('All generated content saved successfully')
+                setSuccess('本文の生成と保存が完了しました')
+              } catch (saveError) {
+                console.error('Failed to save generated content:', saveError)
+                setSuccess('本文の生成が完了しました（一部の保存に失敗した可能性があります）')
+              }
+              
+              // 成功メッセージを3秒後に自動で消す
+              setTimeout(() => setSuccess(null), 3000)
               console.log('All sections generated successfully')
             } catch (generationError) {
               console.error('Content generation error:', generationError)
@@ -384,10 +423,8 @@ ${section.description || ''}
       setContent(updatedContent)
       setSuccess('本文が正常に再生成されました')
       
-      // 成功メッセージを3秒後に消去
-      setTimeout(() => {
-        setSuccess(null)
-      }, 3000)
+      // 成功メッセージを3秒後に自動で消す
+      setTimeout(() => setSuccess(null), 3000)
     } catch (err) {
       console.error('Error regenerating content:', err)
       setError(err instanceof Error ? err.message : '本文の再生成に失敗しました')
@@ -432,6 +469,45 @@ ${section.description || ''}
               AIが生成した内容を参考に、各セクションの内容を編集・執筆してください
             </p>
           </div>
+
+          {/* Article Info */}
+          {articleId && !isLoading && (
+            <div className="rounded-lg border bg-card p-4 space-y-3">
+              <div>
+                <h2 className="text-lg font-semibold mb-1">{heading}</h2>
+                <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
+                  <span>テーマ: {theme}</span>
+                  <span>•</span>
+                  <span>対象読者: {targetAudience === 'beginner' ? '初心者' : targetAudience === 'intermediate' ? '中級者' : '上級者'}</span>
+                </div>
+              </div>
+              
+              {/* Progress Bar */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">執筆進捗</span>
+                  <span className="font-medium">
+                    {outline.length > 0 
+                      ? Math.round((Object.values(isCompleted).filter(Boolean).length / outline.length) * 100)
+                      : 0}%
+                  </span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-secondary">
+                  <div 
+                    className="h-full bg-primary transition-all" 
+                    style={{ 
+                      width: `${outline.length > 0 
+                        ? Math.round((Object.values(isCompleted).filter(Boolean).length / outline.length) * 100)
+                        : 0}%` 
+                    }} 
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {Object.values(isCompleted).filter(Boolean).length} / {outline.length} セクション完了
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Loading State */}
           {isLoading && (
