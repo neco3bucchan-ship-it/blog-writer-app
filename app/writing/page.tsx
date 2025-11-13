@@ -466,10 +466,15 @@ ${section.description || ''}
               {articleId && currentOutline && (
                 <div className="flex items-center justify-between">
                   <AutoSaveIndicator
-                    isSaving={autoSave.isSaving}
+                    status={autoSave.status}
                     lastSaved={autoSave.lastSaved}
                     hasUnsavedChanges={autoSave.hasUnsavedChanges}
                     error={autoSave.error}
+                    retryCount={autoSave.retryCount}
+                    maxRetries={autoSave.maxRetries}
+                    nextRetryAt={autoSave.nextRetryAt}
+                    isOffline={autoSave.isOffline}
+                    onRetry={autoSave.retry}
                   />
                   <Button
                     onClick={handleSave}
