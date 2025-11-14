@@ -6,14 +6,7 @@
     "build": "next build",
     "dev": "next dev",
     "lint": "eslint .",
-    "start": "next start",
-    "postinstall": "npm install --legacy-peer-deps || true"
-  },
-  "overrides": {
-    "vaul": {
-      "react": "^19",
-      "react-dom": "^19"
-    }
+    "start": "next start"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
